@@ -23,6 +23,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/version"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	api "k8s.io/kubernetes/pkg/apis/core"
@@ -569,7 +570,7 @@ func TestVolumeAttachmentValidationV1(t *testing.T) {
 	}}
 
 	for _, volumeAttachment := range successCases {
-		if errs := ValidateVolumeAttachmentV1(&volumeAttachment); len(errs) != 0 {
+		if errs := ValidateVolumeAttachment(&volumeAttachment); len(errs) != 0 {
 			t.Errorf("expected success: %+v", errs)
 		}
 	}
@@ -597,7 +598,7 @@ func TestVolumeAttachmentValidationV1(t *testing.T) {
 	}}
 
 	for _, volumeAttachment := range errorCases {
-		if errs := ValidateVolumeAttachmentV1(&volumeAttachment); len(errs) == 0 {
+		if errs := ValidateVolumeAttachment(&volumeAttachment); len(errs) == 0 {
 			t.Errorf("Expected failure for test: %+v", volumeAttachment)
 		}
 	}
@@ -1254,6 +1255,7 @@ func TestCSINodeValidation(t *testing.T) {
 func TestCSINodeUpdateValidation(t *testing.T) {
 	nodeID := "nodeA"
 	// Test with feature gate disabled
+	featuregatetesting.SetFeatureGateEmulationVersionDuringTest(t, utilfeature.DefaultFeatureGate, version.MustParse("1.35"))
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.MutableCSINodeAllocatableCount, false)
 	old := storage.CSINode{
 		ObjectMeta: metav1.ObjectMeta{Name: "foo1"},
@@ -1502,11 +1504,8 @@ func TestCSINodeUpdateValidation(t *testing.T) {
 }
 
 func TestCSIDriverValidation(t *testing.T) {
-	// assume this feature is on for this test, detailed enabled/disabled tests in TestCSIDriverValidationSELinuxMountEnabledDisabled
-	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.SELinuxMountReadWriteOncePod, true)
 	// assume this feature is on for this test, detailed enabled/disabled tests in TestMutableCSINodeAllocatableCountEnabledDisabled
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.MutableCSINodeAllocatableCount, true)
-	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.CSIServiceAccountTokenSecrets, true)
 
 	driverName := "test-driver"
 	longName := "my-a-b-c-d-c-f-g-h-i-j-k-l-m-n-o-p-q-r-s-t-u-v-w-x-y-z-ABCDEFGHIJKLMNOPQRSTUVWXYZ-driver"
@@ -1841,11 +1840,8 @@ func TestCSIDriverValidation(t *testing.T) {
 }
 
 func TestCSIDriverValidationUpdate(t *testing.T) {
-	// assume this feature is on for this test, detailed enabled/disabled tests in TestCSIDriverValidationSELinuxMountEnabledDisabled
-	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.SELinuxMountReadWriteOncePod, true)
 	// assume this feature is on for this test, detailed enabled/disabled tests in TestMutableCSINodeAllocatableCountEnabledDisabled
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.MutableCSINodeAllocatableCount, true)
-	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.CSIServiceAccountTokenSecrets, true)
 
 	driverName := "test-driver"
 	longName := "my-a-b-c-d-c-f-g-h-i-j-k-l-m-n-o-p-q-r-s-t-u-v-w-x-y-z-ABCDEFGHIJKLMNOPQRSTUVWXYZ-driver"
@@ -2290,6 +2286,9 @@ func TestCSIDriverValidationSELinuxMountEnabledDisabled(t *testing.T) {
 	}}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			if !test.featureEnabled {
+				featuregatetesting.SetFeatureGateEmulationVersionDuringTest(t, utilfeature.DefaultFeatureGate, version.MustParse("1.35"))
+			}
 			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.SELinuxMountReadWriteOncePod, test.featureEnabled)
 			csiDriver := &storage.CSIDriver{
 				ObjectMeta: metav1.ObjectMeta{Name: "foo"},
@@ -2368,6 +2367,9 @@ func TestCSIDriverValidationSELinuxMountEnabledDisabled(t *testing.T) {
 	}}
 	for _, test := range updateTests {
 		t.Run(test.name, func(t *testing.T) {
+			if !test.featureEnabled {
+				featuregatetesting.SetFeatureGateEmulationVersionDuringTest(t, utilfeature.DefaultFeatureGate, version.MustParse("1.35"))
+			}
 			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.SELinuxMountReadWriteOncePod, test.featureEnabled)
 			oldCSIDriver := &storage.CSIDriver{
 				ObjectMeta: metav1.ObjectMeta{Name: "foo", ResourceVersion: "1"},

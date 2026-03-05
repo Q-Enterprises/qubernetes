@@ -360,7 +360,7 @@ func TestRunInContainer(t *testing.T) {
 		assert.Equal(t, cmd, fakeCommandRunner.Cmd, "(testError=%v) command", testError)
 		// this isn't 100% foolproof as a bug in a real CommandRunner where it fails to copy to stdout/stderr wouldn't be caught by this test
 		assert.Equal(t, "foo", string(actualOutput), "(testError=%v) output", testError)
-		assert.Equal(t, err, testError, "(testError=%v) err", testError)
+		assert.Equal(t, testError, err, "(testError=%v) err", testError)
 	}
 }
 
@@ -396,7 +396,7 @@ func buildService(name, namespace, clusterIP, protocol string, port int) *v1.Ser
 }
 
 func TestMakeEnvironmentVariables(t *testing.T) {
-	logger, _ := ktesting.NewTestContext(t)
+	tCtx := ktesting.Init(t)
 	trueVal := true
 	services := []*v1.Service{
 		buildService("kubernetes", metav1.NamespaceDefault, "1.2.3.1", "TCP", 8081),
@@ -2036,7 +2036,7 @@ func TestMakeEnvironmentVariables(t *testing.T) {
 				testPod.Annotations[kubetypes.ConfigSourceAnnotationKey] = "file"
 			}
 
-			result, err := kl.makeEnvironmentVariables(logger, testPod, tc.container, podIP, tc.podIPs, kubecontainer.VolumeMap{})
+			result, err := kl.makeEnvironmentVariables(tCtx, testPod, tc.container, podIP, tc.podIPs, kubecontainer.VolumeMap{})
 			select {
 			case e := <-fakeRecorder.Events:
 				assert.Equal(t, tc.expectedEvent, e)
@@ -6449,7 +6449,7 @@ func TestKubelet_HandlePodCleanups(t *testing.T) {
 			prepareWorker: func(t *testing.T, w *podWorkers, records map[types.UID][]syncPodRecord) {
 				// send a create
 				pod := simplePod()
-				w.UpdatePod(UpdatePodOptions{
+				w.UpdatePod(tCtx, UpdatePodOptions{
 					UpdateType: kubetypes.SyncPodCreate,
 					StartTime:  time.Unix(1, 0).UTC(),
 					Pod:        pod,
@@ -6474,7 +6474,7 @@ func TestKubelet_HandlePodCleanups(t *testing.T) {
 						},
 					},
 				}
-				w.UpdatePod(UpdatePodOptions{
+				w.UpdatePod(tCtx, UpdatePodOptions{
 					UpdateType: kubetypes.SyncPodKill,
 					StartTime:  time.Unix(3, 0).UTC(),
 					Pod:        updatedPod,
@@ -6850,7 +6850,7 @@ func TestKubelet_HandlePodCleanups(t *testing.T) {
 						},
 					},
 				}
-				w.UpdatePod(UpdatePodOptions{
+				w.UpdatePod(tCtx, UpdatePodOptions{
 					UpdateType: kubetypes.SyncPodCreate,
 					StartTime:  time.Unix(1, 0).UTC(),
 					Pod:        pod,
@@ -6873,7 +6873,7 @@ func TestKubelet_HandlePodCleanups(t *testing.T) {
 						},
 					},
 				}
-				w.UpdatePod(UpdatePodOptions{
+				w.UpdatePod(tCtx, UpdatePodOptions{
 					UpdateType: kubetypes.SyncPodKill,
 					StartTime:  time.Unix(3, 0).UTC(),
 					Pod:        updatedPod,
@@ -6922,7 +6922,7 @@ func TestKubelet_HandlePodCleanups(t *testing.T) {
 				// block startup of the static pod due to full name collision
 				w.startedStaticPodsByFullname[kubecontainer.GetPodFullName(pod)] = types.UID("2")
 
-				w.UpdatePod(UpdatePodOptions{
+				w.UpdatePod(tCtx, UpdatePodOptions{
 					UpdateType: kubetypes.SyncPodCreate,
 					StartTime:  time.Unix(1, 0).UTC(),
 					Pod:        pod,
@@ -6995,7 +6995,7 @@ func TestKubelet_HandlePodCleanups(t *testing.T) {
 				// block startup of the static pod due to full name collision
 				w.startedStaticPodsByFullname[kubecontainer.GetPodFullName(pod)] = types.UID("2")
 
-				w.UpdatePod(UpdatePodOptions{
+				w.UpdatePod(tCtx, UpdatePodOptions{
 					UpdateType: kubetypes.SyncPodCreate,
 					StartTime:  time.Unix(1, 0).UTC(),
 					Pod:        pod,
@@ -7058,7 +7058,7 @@ func TestKubelet_HandlePodCleanups(t *testing.T) {
 				// block startup of the static pod due to full name collision
 				w.startedStaticPodsByFullname[kubecontainer.GetPodFullName(pod)] = types.UID("2")
 
-				w.UpdatePod(UpdatePodOptions{
+				w.UpdatePod(tCtx, UpdatePodOptions{
 					UpdateType: kubetypes.SyncPodCreate,
 					StartTime:  time.Unix(1, 0).UTC(),
 					Pod:        pod,
@@ -7103,7 +7103,7 @@ func TestKubelet_HandlePodCleanups(t *testing.T) {
 				// send a create of a static pod
 				pod := staticPod()
 
-				w.UpdatePod(UpdatePodOptions{
+				w.UpdatePod(tCtx, UpdatePodOptions{
 					UpdateType: kubetypes.SyncPodCreate,
 					StartTime:  time.Unix(1, 0).UTC(),
 					Pod:        pod,
@@ -7111,14 +7111,14 @@ func TestKubelet_HandlePodCleanups(t *testing.T) {
 				drainAllWorkers(w)
 
 				// terminate the pod (which won't complete) and then deliver a recreate by that same UID
-				w.UpdatePod(UpdatePodOptions{
+				w.UpdatePod(tCtx, UpdatePodOptions{
 					UpdateType: kubetypes.SyncPodKill,
 					StartTime:  time.Unix(2, 0).UTC(),
 					Pod:        pod,
 				})
 				pod = staticPod()
 				pod.Annotations["version"] = "2"
-				w.UpdatePod(UpdatePodOptions{
+				w.UpdatePod(tCtx, UpdatePodOptions{
 					UpdateType: kubetypes.SyncPodCreate,
 					StartTime:  time.Unix(3, 0).UTC(),
 					Pod:        pod,
@@ -7212,7 +7212,7 @@ func TestKubelet_HandlePodCleanups(t *testing.T) {
 				// send a create of a static pod
 				pod := staticPod()
 
-				w.UpdatePod(UpdatePodOptions{
+				w.UpdatePod(tCtx, UpdatePodOptions{
 					UpdateType: kubetypes.SyncPodCreate,
 					StartTime:  time.Unix(1, 0).UTC(),
 					Pod:        pod,
@@ -7255,7 +7255,7 @@ func TestKubelet_HandlePodCleanups(t *testing.T) {
 				// send a create of a static pod
 				pod := staticPod()
 
-				w.UpdatePod(UpdatePodOptions{
+				w.UpdatePod(tCtx, UpdatePodOptions{
 					UpdateType: kubetypes.SyncPodCreate,
 					StartTime:  time.Unix(1, 0).UTC(),
 					Pod:        pod,
@@ -7342,19 +7342,19 @@ func TestKubelet_HandlePodCleanups(t *testing.T) {
 			prepareWorker: func(t *testing.T, w *podWorkers, records map[types.UID][]syncPodRecord) {
 				// simulate a delete and recreate of the static pod
 				pod := simplePod()
-				w.UpdatePod(UpdatePodOptions{
+				w.UpdatePod(tCtx, UpdatePodOptions{
 					UpdateType: kubetypes.SyncPodCreate,
 					StartTime:  time.Unix(1, 0).UTC(),
 					Pod:        pod,
 				})
 				drainAllWorkers(w)
-				w.UpdatePod(UpdatePodOptions{
+				w.UpdatePod(tCtx, UpdatePodOptions{
 					UpdateType: kubetypes.SyncPodKill,
 					Pod:        pod,
 				})
 				pod2 := simplePod()
 				pod2.Annotations = map[string]string{"version": "2"}
-				w.UpdatePod(UpdatePodOptions{
+				w.UpdatePod(tCtx, UpdatePodOptions{
 					UpdateType: kubetypes.SyncPodCreate,
 					Pod:        pod2,
 				})
@@ -7443,7 +7443,8 @@ func TestKubelet_HandlePodCleanups(t *testing.T) {
 			defer testKubelet.Cleanup()
 			kl := testKubelet.kubelet
 
-			podWorkers, _, processed := createPodWorkers()
+			logger, _ := ktesting.NewTestContext(t)
+			podWorkers, _, processed := createPodWorkers(logger)
 			kl.podWorkers = podWorkers
 			originalPodSyncer := podWorkers.podSyncer
 			syncFuncs := newPodSyncerFuncs(originalPodSyncer)
@@ -7475,7 +7476,7 @@ func TestKubelet_HandlePodCleanups(t *testing.T) {
 				if !ok {
 					t.Fatalf("unable to reject pod by UID %v", reject.uid)
 				}
-				kl.rejectPod(pod, reject.reason, reject.message)
+				kl.rejectPod(tCtx, pod, reject.reason, reject.message)
 			}
 
 			if err := kl.HandlePodCleanups(tCtx); (err != nil) != tt.wantErr {
@@ -7770,7 +7771,7 @@ func (tvm *testVolumeMounter) GetPath() string {
 }
 
 func TestMakeEnvironmentVariablesWithFileKeyRef(t *testing.T) {
-	logger, _ := ktesting.NewTestContext(t)
+	tCtx := ktesting.Init(t)
 	// Create a temporary directory for test files
 	tmpDir, err := os.MkdirTemp("", "filekeyref-test")
 	require.NoError(t, err)
@@ -8126,7 +8127,7 @@ func TestMakeEnvironmentVariablesWithFileKeyRef(t *testing.T) {
 				},
 			}
 
-			envs, err := kl.makeEnvironmentVariables(logger, pod, tc.container, "192.168.1.1", []string{"192.168.1.1"}, tc.podVolumes)
+			envs, err := kl.makeEnvironmentVariables(tCtx, pod, tc.container, "192.168.1.1", []string{"192.168.1.1"}, tc.podVolumes)
 
 			if tc.expectedError {
 				require.Error(t, err)
