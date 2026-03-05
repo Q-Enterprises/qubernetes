@@ -50,7 +50,6 @@ type DeviceClassLister = internal.DeviceClassLister
 type Features = internal.Features
 type DeviceID = internal.DeviceID
 
-// types_experimental
 type SharedDeviceID = internal.SharedDeviceID
 type ConsumedCapacityCollection = internal.ConsumedCapacityCollection
 type ConsumedCapacity = internal.ConsumedCapacity
@@ -6039,7 +6038,7 @@ func TestAllocator(t *testing.T,
 			expectResults:                   nil,
 			expectNumAllocateOneInvocations: 16,
 			expectNumAllocateOneInvocationsByChannel: map[internal.AllocatorChannel]int64{
-				internal.Incubating: 65,
+				internal.Stable: 65,
 			},
 		},
 		"check-combinations-within-single-request-single-pool-multiple-slices": {
@@ -6061,7 +6060,7 @@ func TestAllocator(t *testing.T,
 			expectResults:                   nil,
 			expectNumAllocateOneInvocations: 16,
 			expectNumAllocateOneInvocationsByChannel: map[internal.AllocatorChannel]int64{
-				internal.Incubating: 65,
+				internal.Stable: 65,
 			},
 		},
 		"check-combinations-within-single-request-multiple-pools-multiple-slices": {
@@ -6085,7 +6084,7 @@ func TestAllocator(t *testing.T,
 			expectResults:                   nil,
 			expectNumAllocateOneInvocations: 16,
 			expectNumAllocateOneInvocationsByChannel: map[internal.AllocatorChannel]int64{
-				internal.Incubating: 65,
+				internal.Stable: 65,
 			},
 		},
 		"check-combinations-within-single-request-many-pools": {
@@ -6111,7 +6110,7 @@ func TestAllocator(t *testing.T,
 			expectResults:                   nil,
 			expectNumAllocateOneInvocations: 16,
 			expectNumAllocateOneInvocationsByChannel: map[internal.AllocatorChannel]int64{
-				internal.Incubating: 65,
+				internal.Stable: 65,
 			},
 		},
 		"check-combinations-with-backtracking": {
@@ -6155,7 +6154,7 @@ func TestAllocator(t *testing.T,
 			)},
 			expectNumAllocateOneInvocations: 12,
 			expectNumAllocateOneInvocationsByChannel: map[internal.AllocatorChannel]int64{
-				internal.Incubating: 14,
+				internal.Stable: 14,
 			},
 		},
 		"check-combinations-with-backtracking-across-slices-and-pools": {
@@ -6210,7 +6209,7 @@ func TestAllocator(t *testing.T,
 			)},
 			expectNumAllocateOneInvocations: 12,
 			expectNumAllocateOneInvocationsByChannel: map[internal.AllocatorChannel]int64{
-				internal.Incubating: 14,
+				internal.Stable: 14,
 			},
 		},
 		"check-combinations-with-prioritized-list": {
@@ -6267,7 +6266,7 @@ func TestAllocator(t *testing.T,
 			)},
 			expectNumAllocateOneInvocations: 26,
 			expectNumAllocateOneInvocationsByChannel: map[internal.AllocatorChannel]int64{
-				internal.Incubating: 32,
+				internal.Stable: 32,
 			},
 		},
 	}
@@ -6308,7 +6307,9 @@ func TestAllocator(t *testing.T,
 			if _, ok := allocator.(internal.AllocatorExtended); tc.expectNumAllocateOneInvocations > 0 && !ok {
 				t.Skipf("%T does not support the AllocatorStats interface", allocator)
 			}
-
+			if tc.node == nil {
+				tc.node = node(node1, region1)
+			}
 			results, err := allocator.Allocate(ctx, tc.node, unwrap(claimsToAllocate...))
 			matchError := tc.expectError
 			if matchError == nil {

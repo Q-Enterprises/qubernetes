@@ -518,25 +518,45 @@ func (pl *DynamicResources) PreFilter(ctx context.Context, state fwk.CycleState,
 		// Claims (and thus their devices) are treated as "allocated" if they are in the assume cache
 		// or currently their allocation is in-flight. This does not change
 		// during filtering, so we can determine that once.
+		//
+		// This might have to be retried in the unlikely case that some concurrent modification made
+		// the result invalid.
 		var allocatedState *structured.AllocatedState
-		if pl.fts.EnableDRAConsumableCapacity {
-			allocatedState, err = pl.draManager.ResourceClaims().GatherAllocatedState()
-			if err != nil {
-				return nil, statusError(logger, err)
+		err = wait.PollUntilContextTimeout(ctx, time.Microsecond, 5*time.Second, true /* immediate */, func(context.Context) (bool, error) {
+			if pl.fts.EnableDRAConsumableCapacity {
+				allocatedState, err = pl.draManager.ResourceClaims().GatherAllocatedState()
+				if err != nil {
+					if errors.Is(err, errClaimTrackerConcurrentModification) {
+						logger.V(6).Info("Conflicting modification during GatherAllocatedState, trying again")
+						return false, nil
+					}
+					return false, err
+				}
+				if allocatedState == nil {
+					return false, errors.New("nil allocated state")
+				}
+				// Done.
+				return true, nil
+			} else {
+				allocatedDevices, err := pl.draManager.ResourceClaims().ListAllAllocatedDevices()
+				if err != nil {
+					if errors.Is(err, errClaimTrackerConcurrentModification) {
+						logger.V(6).Info("Conflicting modification during ListAllAllocatedDevices, trying again")
+						return false, nil
+					}
+					return false, err
+				}
+				allocatedState = &structured.AllocatedState{
+					AllocatedDevices:         allocatedDevices,
+					AllocatedSharedDeviceIDs: sets.New[structured.SharedDeviceID](),
+					AggregatedCapacity:       structured.NewConsumedCapacityCollection(),
+				}
+				// Done.
+				return true, nil
 			}
-			if allocatedState == nil {
-				return nil, statusError(logger, errors.New("nil allocated state"))
-			}
-		} else {
-			allocatedDevices, err := pl.draManager.ResourceClaims().ListAllAllocatedDevices()
-			if err != nil {
-				return nil, statusError(logger, err)
-			}
-			allocatedState = &structured.AllocatedState{
-				AllocatedDevices:         allocatedDevices,
-				AllocatedSharedDeviceIDs: sets.New[structured.SharedDeviceID](),
-				AggregatedCapacity:       structured.NewConsumedCapacityCollection(),
-			}
+		})
+		if err != nil {
+			return nil, statusError(logger, fmt.Errorf("gather allocation state: %w", err))
 		}
 		slices, err := pl.draManager.ResourceSlices().ListWithDeviceTaintRules()
 		if err != nil {
@@ -1129,6 +1149,14 @@ func (pl *DynamicResources) bindClaim(ctx context.Context, state *stateData, ind
 	claimUIDs := []types.UID{claim.UID}
 	resourceClaimModified := false
 	defer func() {
+		// Creating the claim may have failed.
+		resourceVersion := ""
+		claimUID := types.UID("")
+		if claim != nil {
+			resourceVersion = claim.ResourceVersion
+			claimUID = claim.UID
+		}
+
 		// The scheduler was handling allocation. Now that has
 		// completed, either successfully or with a failure.
 		if resourceClaimModified {
@@ -1138,19 +1166,16 @@ func (pl *DynamicResources) bindClaim(ctx context.Context, state *stateData, ind
 				// This can fail, but only for reasons that are okay (concurrent delete or update).
 				// Shouldn't happen in this case.
 				if err := pl.draManager.ResourceClaims().AssumeClaimAfterAPICall(claim); err != nil {
-					logger.V(5).Info("Claim not stored in assume cache", "err", err)
+					logger.V(5).Info("Claim not stored in assume cache", "err", err, "claim", klog.KObj(claim), "uid", claimUID, "resourceVersion", resourceVersion)
+				} else {
+					logger.V(5).Info("Claim stored in assume cache", "claim", klog.KObj(claim), "uid", claimUID, "resourceVersion", resourceVersion)
 				}
 			}
 		}
 		if allocation != nil {
 			for _, claimUID := range claimUIDs {
 				if deleted := pl.draManager.ResourceClaims().RemoveClaimPendingAllocation(claimUID); deleted {
-					// Creating the claim may have failed.
-					resourceVersion := ""
-					if claim != nil {
-						resourceVersion = claim.ResourceVersion
-					}
-					logger.V(5).Info("Released resource in allocation result", "claim", klog.KObj(claim), "uid", claimUID, "resourceVersion", resourceVersion, "allocation", klog.Format(allocation))
+					logger.V(5).Info("Removed claim from in-flight claims", "claim", klog.KObj(claim), "uid", claimUID, "resourceVersion", resourceVersion, "allocation", klog.Format(allocation))
 				}
 			}
 		}

@@ -98,7 +98,7 @@ func (m *kubeGenericRuntimeManager) recordContainerEvent(ctx context.Context, po
 	if containerID != "" {
 		eventMessage = strings.Replace(eventMessage, containerID, container.Name, -1)
 	}
-	m.recorder.Event(ref, eventType, reason, eventMessage)
+	m.recorder.WithLogger(logger).Event(ref, eventType, reason, eventMessage)
 }
 
 // startSpec wraps the spec required to start a container, either a regular/init container
@@ -766,7 +766,7 @@ func (m *kubeGenericRuntimeManager) executePreStopHook(ctx context.Context, pod 
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		defer utilruntime.HandleCrash()
+		defer utilruntime.HandleCrashWithContext(ctx)
 		if _, err := m.runner.Run(ctx, containerID, pod, containerSpec, containerSpec.Lifecycle.PreStop); err != nil {
 			logger.Error(err, "PreStop hook failed", "pod", klog.KObj(pod), "podUID", pod.UID,
 				"containerName", containerSpec.Name, "containerID", containerID.String())
@@ -922,7 +922,7 @@ func (m *kubeGenericRuntimeManager) killContainersWithSyncResult(ctx context.Con
 	}
 	for _, container := range runningPod.Containers {
 		go func(container *kubecontainer.Container) {
-			defer utilruntime.HandleCrash()
+			defer utilruntime.HandleCrashWithContext(ctx)
 			defer wg.Done()
 
 			killContainerResult := kubecontainer.NewSyncResult(kubecontainer.KillContainer, container.Name)

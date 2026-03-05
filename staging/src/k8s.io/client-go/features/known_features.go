@@ -76,6 +76,12 @@ const (
 	// GA: v1.35
 	InformerResourceVersion Feature = "InformerResourceVersion"
 
+	// owner: @michaelasp
+	// beta: v1.36
+	//
+	// Allow the FIFO to unlock while processing items to allow other goroutines to add items to the queue.
+	UnlockWhileProcessingFIFO Feature = "UnlockWhileProcessingFIFO"
+
 	// owner: @p0lyn0mial
 	// beta: v1.30
 	//
@@ -100,6 +106,7 @@ var defaultVersionedKubernetesFeatureGates = map[Feature]VersionedSpecs{
 	},
 	InOrderInformers: {
 		{Version: version.MustParse("1.33"), Default: true, PreRelease: Beta},
+		{Version: version.MustParse("1.36"), Default: true, PreRelease: GA, LockToDefault: true},
 	},
 	InOrderInformersBatchProcess: {
 		{Version: version.MustParse("1.35"), Default: true, PreRelease: Beta},
@@ -107,6 +114,9 @@ var defaultVersionedKubernetesFeatureGates = map[Feature]VersionedSpecs{
 	InformerResourceVersion: {
 		{Version: version.MustParse("1.30"), Default: false, PreRelease: Alpha},
 		{Version: version.MustParse("1.35"), Default: true, PreRelease: GA},
+	},
+	UnlockWhileProcessingFIFO: {
+		{Version: version.MustParse("1.36"), Default: true, PreRelease: Beta},
 	},
 	WatchListClient: {
 		{Version: version.MustParse("1.30"), Default: false, PreRelease: Beta},
